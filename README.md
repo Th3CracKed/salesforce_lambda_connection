@@ -75,16 +75,17 @@ connectionManager.clearAllConnections();
 ## How It Works
 
 1. **Singleton Pattern**: Uses singleton pattern to maintain connection cache across Lambda invocations
-2. **Token Expiry**: Tracks token expiry with a 5-minute buffer to avoid using tokens near expiration
-3. **Cache Key**: Generates unique cache keys based on client ID and refresh token
-4. **Automatic Refresh**: Automatically refreshes access tokens when needed
+2. **JSForce Auto-Refresh**: JSForce automatically refreshes expired tokens when making API calls (official behavior)
+3. **Connection Reuse**: Caches connection objects for 30 minutes to avoid creating multiple connections
+4. **Cache Key**: Generates unique cache keys based on client ID and refresh token
+5. **Event Monitoring**: Optionally listens to refresh events for logging and monitoring
 
 ## Benefits for Lambda
 
-- **Reduced Cold Start Impact**: Reuses connections across invocations
-- **Lower API Usage**: Avoids unnecessary token refresh calls
-- **Better Performance**: Faster response times for subsequent requests
-- **Cost Optimization**: Reduces Salesforce API call costs
+- **Reduced Cold Start Impact**: Reuses connection objects across invocations
+- **Automatic Token Management**: JSForce handles all token refresh automatically
+- **Better Performance**: Faster response times by avoiding connection recreation
+- **Cost Optimization**: Reduces connection overhead and improves efficiency
 
 ## Best Practices
 
