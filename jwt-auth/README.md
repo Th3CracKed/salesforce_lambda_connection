@@ -20,28 +20,24 @@ A JWT-based connection manager for JSForce optimized for AWS Lambda environments
 
 ## Prerequisites
 
-### 1. Salesforce Connected App Setup
+### Salesforce Connected App Setup
 
-Create a Connected App in Salesforce with:
+**📋 For detailed step-by-step setup instructions, see [SALESFORCE_SETUP.md](./SALESFORCE_SETUP.md)**
 
-1. **Enable OAuth Settings**: Check "Enable OAuth Settings"
-2. **Callback URL**: Use any valid URL (not used in JWT flow)
-3. **OAuth Scopes**: Select required scopes (e.g., "Full access", "Perform requests at any time")
-4. **Use digital signatures**: Check this option
-5. **Upload Certificate**: Upload your public key certificate
+Quick overview:
+1. Generate RSA key pair (private key + public certificate)
+2. Create Connected App in Salesforce
+3. Enable OAuth settings with digital signatures
+4. Upload public certificate
+5. Configure OAuth scopes and policies
+6. Get Consumer Key for your application
 
-### 2. Generate RSA Key Pair
-
-```bash
-# Generate private key
-openssl genrsa -out private.key 2048
-
-# Generate public key certificate
-openssl req -new -x509 -key private.key -out public.crt -days 365
-
-# Convert private key to PKCS#8 format (recommended)
-openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt -in private.key -out private_key.pem
-```
+The detailed guide covers:
+- Complete OpenSSL commands for key generation
+- Screenshot-guided Salesforce configuration
+- Security best practices
+- Troubleshooting common issues
+- Environment-specific considerations
 
 ## Installation
 
