@@ -1,0 +1,123 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Salesforce JWT Bearer Token Lambda Integration (Secrets Manager Only)
+
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Deployment stage
+  
+  SecretName:
+    Type: String
+    Default: salesforce-jwt
+    Description: Base name for Secrets Manager secret
+
+Globals:
+  Function:
+    Runtime: nodejs18.x
+    MemorySize: 512
+    Timeout: 30
+    Environment:
+      Variables:
+        USE_AWS_SECRETS: true
+        AWS_REGION: !Ref AWS::Region
+        SF_SECRET_NAME: !Sub "${SecretName}-${Stage}"
+
+Resources:
+  # Lambda Function
+  SalesforceJWTFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "salesforce-jwt-${Stage}"
+      CodeUri: ../dist/
+      Handler: lambda-handler.handler
+      Description: Salesforce API integration using JWT Bearer Token Flow
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+                - secretsmanager:DescribeSecret
+              Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SecretName}-${Stage}*"
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /api/salesforce
+            Method: ANY
+            RestApiId: !Ref SalesforceApi
+  
+  # Health Check Function
+  HealthCheckFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "salesforce-jwt-health-${Stage}"
+      CodeUri: ../dist/
+      Handler: lambda-handler.healthCheck
+      Description: Health check for Salesforce JWT connection
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+                - secretsmanager:DescribeSecret
+              Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SecretName}-${Stage}*"
+      Events:
+        HealthEvent:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: GET
+            RestApiId: !Ref SalesforceApi
+  
+  # API Gateway
+  SalesforceApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub "salesforce-jwt-api-${Stage}"
+      StageName: !Ref Stage
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+      DefinitionBody:
+        swagger: '2.0'
+        info:
+          title: Salesforce JWT API
+          version: '1.0'
+        paths:
+          /api/salesforce:
+            x-amazon-apigateway-any-method:
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SalesforceJWTFunction.Arn}/invocations"
+          /health:
+            get:
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HealthCheckFunction.Arn}/invocations"
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub "https://${SalesforceApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiUrl"
+  
+  FunctionName:
+    Description: Lambda function name
+    Value: !Ref SalesforceJWTFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-FunctionName"
+  
+  SecretArn:
+    Description: Secrets Manager secret ARN (to be created separately)
+    Value: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SecretName}-${Stage}"
+    Export:
+      Name: !Sub "${AWS::StackName}-SecretArn"

@@ -95,6 +95,32 @@ if [ -z "$APP_NAME" ]; then
 fi
 echo ""
 
+# AWS Secrets Manager option
+echo "🔐 AWS Secrets Manager Integration:"
+echo "Store sensitive information securely in AWS (recommended for production)"
+read -p "Use AWS Secrets Manager? (y/N): " USE_AWS_SECRETS
+echo ""
+
+if [ "$USE_AWS_SECRETS" = "y" ] || [ "$USE_AWS_SECRETS" = "Y" ]; then
+    read -p "AWS Region (press Enter for us-east-1): " AWS_REGION
+    if [ -z "$AWS_REGION" ]; then
+        AWS_REGION="us-east-1"
+    fi
+    echo ""
+    
+    read -p "Secret Name (press Enter for salesforce-jwt-$APP_NAME): " SECRET_NAME
+    if [ -z "$SECRET_NAME" ]; then
+        SECRET_NAME="salesforce-jwt-$(echo $APP_NAME | tr '[:upper:]' '[:lower:]')"
+    fi
+    echo ""
+    
+    read -p "Parameter Prefix (press Enter for /salesforce/jwt/$(echo $APP_NAME | tr '[:upper:]' '[:lower:]')): " PARAMETER_PREFIX
+    if [ -z "$PARAMETER_PREFIX" ]; then
+        PARAMETER_PREFIX="/salesforce/jwt/$(echo $APP_NAME | tr '[:upper:]' '[:lower:]')"
+    fi
+    echo ""
+fi
+
 read -p "Output Directory (press Enter for ./jwt-output): " OUTPUT_DIR
 if [ -z "$OUTPUT_DIR" ]; then
     OUTPUT_DIR="./jwt-output"
@@ -115,6 +141,13 @@ fi
 echo "Contact Email: $CONTACT_EMAIL"
 echo "Organization: $ORGANIZATION"
 echo "App Name: $APP_NAME"
+if [ "$USE_AWS_SECRETS" = "y" ] || [ "$USE_AWS_SECRETS" = "Y" ]; then
+    echo "AWS Secrets: Enabled"
+    echo "AWS Region: $AWS_REGION"
+    echo "Secret Name: $SECRET_NAME"
+else
+    echo "AWS Secrets: Disabled (using local files)"
+fi
 echo "Output Directory: $OUTPUT_DIR"
 echo ""
 
@@ -147,6 +180,12 @@ fi
 CMD="$CMD --organization \"$ORGANIZATION\""
 CMD="$CMD --app-name \"$APP_NAME\""
 CMD="$CMD --output-dir \"$OUTPUT_DIR\""
+
+if [ "$USE_AWS_SECRETS" = "y" ] || [ "$USE_AWS_SECRETS" = "Y" ]; then
+    CMD="$CMD --use-aws-secrets true"
+    CMD="$CMD --aws-region \"$AWS_REGION\""
+    CMD="$CMD --secret-name \"$SECRET_NAME\""
+fi
 
 # Run the setup
 eval $CMD

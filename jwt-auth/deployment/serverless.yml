@@ -1,0 +1,66 @@
+# Serverless Framework configuration for JWT Lambda deployment
+service: salesforce-jwt-lambda
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ${opt:region, 'us-east-1'}
+  stage: ${opt:stage, 'dev'}
+  memorySize: 512
+  timeout: 30
+  
+  environment:
+    USE_AWS_SECRETS: true
+    AWS_REGION: ${self:provider.region}
+    SF_SECRET_NAME: salesforce-jwt-${self:provider.stage}
+  
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+            - secretsmanager:DescribeSecret
+          Resource:
+            - arn:aws:secretsmanager:${self:provider.region}:*:secret:salesforce-jwt-${self:provider.stage}*
+
+functions:
+  salesforceApi:
+    handler: dist/lambda-handler.handler
+    description: Salesforce API integration using JWT Bearer Token Flow
+    events:
+      - http:
+          path: /api/salesforce
+          method: any
+          cors: true
+    environment:
+      NODE_OPTIONS: '--enable-source-maps'
+  
+  healthCheck:
+    handler: dist/lambda-handler.healthCheck
+    description: Health check for Salesforce JWT connection
+    events:
+      - http:
+          path: /health
+          method: get
+          cors: true
+
+plugins:
+  - serverless-plugin-typescript
+  - serverless-offline
+
+custom:
+  serverless-offline:
+    httpPort: 3000
+    lambdaPort: 3002
+
+package:
+  patterns:
+    - '!src/**'
+    - '!automation/**'
+    - '!*.md'
+    - '!aws-*.json'
+    - 'dist/**'
+    - 'node_modules/**'

@@ -13,7 +13,8 @@
   "dependencies": {
     "jsforce": "^3.9.4",
     "jsonwebtoken": "^9.0.2",
-    "archiver": "^6.0.1"
+    "archiver": "^6.0.1",
+    "@aws-sdk/client-secrets-manager": "^3.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0"

@@ -315,49 +315,127 @@ class JWTFlowAutomation {
   async generateEnvironmentConfig() {
     console.log('📝 Generating environment configuration...');
 
-    // Format private key for environment variable
+    // Store secrets in AWS if requested
+    if (this.config.useAwsSecrets) {
+      await this.storeSecretsInAws();
+    }
+
+    // Format private key for environment variable (fallback)
     const privateKeyForEnv = this.keyPair.privateKey.replace(/\n/g, '\\n');
 
     const envConfig = `# Salesforce JWT Bearer Token Configuration
 # Generated on ${new Date().toISOString()}
 
-# Connected App Consumer Key
-SF_CLIENT_ID="${this.consumerKey}"
+# AWS Secrets Manager Configuration (Recommended for Production)
+${this.config.useAwsSecrets ? `AWS_REGION="${this.config.awsRegion || 'us-east-1'}"
+SF_SECRET_NAME="${this.secretName}"
 
-# Private Key (keep this secure!)
-SF_PRIVATE_KEY="${privateKeyForEnv}"
+# Use AWS secrets (set to 'true' to enable)
+USE_AWS_SECRETS="true"` : '# USE_AWS_SECRETS="false"'}
 
-# Salesforce Username
-SF_USERNAME="${this.config.username}"
+# Direct Environment Variables (Development/Testing only)
+${this.config.useAwsSecrets ? '# ' : ''}SF_CLIENT_ID="${this.consumerKey}"
+${this.config.useAwsSecrets ? '# ' : ''}SF_USERNAME="${this.config.username}"
+${this.config.useAwsSecrets ? '# ' : ''}SF_INSTANCE_URL="${this.conn.instanceUrl}"
 
-# Salesforce Instance URL
-SF_INSTANCE_URL="${this.conn.instanceUrl}"
-
-# Optional: Audience (defaults to instance URL)
-# SF_AUDIENCE="${this.conn.instanceUrl}"
+# Private Key (NEVER use in production - use AWS Secrets Manager instead)
+${this.config.useAwsSecrets ? '# ' : ''}SF_PRIVATE_KEY="${privateKeyForEnv}"
 `;
 
     const configPath = path.join(this.outputDir, '.env.jwt');
     fs.writeFileSync(configPath, envConfig);
 
-    // Also create a JSON config file
-    const jsonConfig = {
+    // Create deployment configuration
+    const deploymentConfig = {
       clientId: this.consumerKey,
       username: this.config.username,
       instanceUrl: this.conn.instanceUrl,
       privateKeyPath: path.resolve(this.keyPair.privateKeyPath),
       publicCertPath: path.resolve(this.keyPair.publicCertPath),
-      generatedAt: new Date().toISOString()
+      generatedAt: new Date().toISOString(),
+      awsConfiguration: this.config.useAwsSecrets ? {
+        region: this.config.awsRegion || 'us-east-1',
+        secretName: this.secretName,
+        secretsStored: true,
+        storageType: 'Secrets Manager Only'
+      } : {
+        secretsStored: false,
+        recommendation: 'Store secrets in AWS Secrets Manager for production'
+      }
     };
 
     const jsonConfigPath = path.join(this.outputDir, 'jwt-config.json');
-    fs.writeFileSync(jsonConfigPath, JSON.stringify(jsonConfig, null, 2));
+    fs.writeFileSync(jsonConfigPath, JSON.stringify(deploymentConfig, null, 2));
 
     console.log('✅ Configuration files generated:');
     console.log(`   📄 Environment variables: ${configPath}`);
-    console.log(`   📄 JSON configuration: ${jsonConfigPath}`);
+    console.log(`   📄 Deployment configuration: ${jsonConfigPath}`);
     console.log(`   🔑 Private key: ${this.keyPair.privateKeyPath}`);
     console.log(`   📜 Public certificate: ${this.keyPair.publicCertPath}`);
+    
+    if (this.config.useAwsSecrets) {
+      console.log('\n🔐 AWS Secrets stored:');
+      console.log(`   📦 Secret: ${this.secretName}`);
+      console.log(`   📋 Storage: Secrets Manager only (simplified approach)`);
+    }
+  }
+
+  async storeSecretsInAws() {
+    console.log('🔐 Storing secrets in AWS...');
+    
+    try {
+      // Import AWS SDK v3
+      const { SecretsManagerClient, CreateSecretCommand, UpdateSecretCommand, DescribeSecretCommand } = require('@aws-sdk/client-secrets-manager');
+      
+      const region = this.config.awsRegion || 'us-east-1';
+      this.secretName = this.config.secretName || `salesforce-jwt-${this.connectedAppName.toLowerCase()}`;
+      this.parameterPrefix = this.config.parameterPrefix || `/salesforce/jwt/${this.connectedAppName.toLowerCase()}`;
+      
+      // Initialize AWS client
+      const secretsClient = new SecretsManagerClient({ region });
+      
+      // Store complete configuration in Secrets Manager
+      const secretValue = {
+        privateKey: this.keyPair.privateKey,
+        clientId: this.consumerKey,
+        username: this.config.username,
+        instanceUrl: this.conn.instanceUrl,
+        generatedAt: new Date().toISOString(),
+        keyType: 'RSA-2048',
+        algorithm: 'RS256'
+      };
+      
+      try {
+        // Try to update existing secret
+        await secretsClient.send(new DescribeSecretCommand({ SecretId: this.secretName }));
+        await secretsClient.send(new UpdateSecretCommand({
+          SecretId: this.secretName,
+          SecretString: JSON.stringify(secretValue),
+          Description: `Salesforce JWT private key for ${this.connectedAppName}`
+        }));
+        console.log(`✅ Updated existing secret: ${this.secretName}`);
+      } catch (error) {
+        if (error.name === 'ResourceNotFoundException') {
+          // Create new secret
+          await secretsClient.send(new CreateSecretCommand({
+            Name: this.secretName,
+            SecretString: JSON.stringify(secretValue),
+            Description: `Salesforce JWT private key for ${this.connectedAppName}`
+          }));
+          console.log(`✅ Created new secret: ${this.secretName}`);
+        } else {
+          throw error;
+        }
+      }
+      
+      console.log('✅ All configuration stored in Secrets Manager (no Parameter Store needed)');
+      
+    } catch (error) {
+      console.error('❌ Failed to store secrets in AWS:', error.message);
+      console.log('💡 Make sure you have AWS credentials configured and appropriate permissions');
+      console.log('   Required permissions: secretsmanager:CreateSecret, secretsmanager:UpdateSecret');
+      throw error;
+    }
   }
 
   sleep(ms) {
@@ -387,6 +465,10 @@ Options:
   --contact-email <email>      Contact email for Connected App
   --organization <org>         Organization name for certificate
   --output-dir <dir>           Output directory (default: ./jwt-output)
+  --use-aws-secrets <bool>     Store secrets in AWS (default: false)
+  --aws-region <region>        AWS region for secrets (default: us-east-1)
+  --secret-name <name>         Custom secret name in Secrets Manager
+  --parameter-prefix <prefix>  Custom parameter prefix in Parameter Store
   --help, -h                   Show this help message
 
 Examples:
@@ -420,6 +502,10 @@ Environment Variables:
       case '--contact-email': config.contactEmail = value; break;
       case '--organization': config.organization = value; break;
       case '--output-dir': config.outputDir = value; break;
+      case '--use-aws-secrets': config.useAwsSecrets = value === 'true'; break;
+      case '--aws-region': config.awsRegion = value; break;
+      case '--secret-name': config.secretName = value; break;
+      case '--parameter-prefix': config.parameterPrefix = value; break;
     }
   }
 
