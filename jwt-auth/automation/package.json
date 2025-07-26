@@ -1,0 +1,31 @@
+{
+  "name": "jwt-flow-automation",
+  "version": "1.0.0",
+  "description": "Automated setup for Salesforce JWT Bearer Token Flow",
+  "main": "setup-jwt-flow.js",
+  "bin": {
+    "setup-jwt-flow": "./setup-jwt-flow.js"
+  },
+  "scripts": {
+    "setup": "node setup-jwt-flow.js",
+    "test": "node test-setup.js"
+  },
+  "dependencies": {
+    "jsforce": "^3.9.4",
+    "jsonwebtoken": "^9.0.2",
+    "archiver": "^6.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "salesforce",
+    "jwt",
+    "oauth2",
+    "automation",
+    "lambda"
+  ]
+}

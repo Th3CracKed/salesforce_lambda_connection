@@ -1,0 +1,38 @@
+# Generated output files
+jwt-output/
+jwt-dev/
+jwt-prod/
+custom-output/
+
+# Private keys and certificates
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+
+# Environment files
+.env*
+!.env.example
+
+# Node modules
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temporary files
+temp-metadata/
+*.tmp
+*.temp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
